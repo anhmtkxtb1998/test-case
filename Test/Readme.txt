@@ -1,0 +1,3 @@
+- Agent.exe: chạy service name: Agent_Hunting, Display Name: Hunting
+- File data.db lưu ở thư mục: D:\My Project\Agent_Hunting
+- Config: Các action của các object đang để filter= 0 -> không filter, filter= 1-> filter
