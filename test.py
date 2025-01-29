@@ -1,108 +1,55 @@
-# import json
-
-
-# USERMENU = """
-#     ++++++++++++++++++++++++++++++
-#     a - Thêm sách
-#     l - Hiển thị tát cả cuốn sách
-#     d - Xóa cuốn sách theo id
-#     f - Tìm kiếm cuốn sách theo id
-#     q - Thoat
-#     ++++++++++++++++++++++++++++++
-#     Lựa chọn của bạn: 
-#  """    
- 
-# opearations = {
-#     'a': add_book,
-#     'l': list_all,
-#     'd': delete_book,
-#     'f': find_book,
-#     'q': exit_
-# }
-
-     
- 
-# class Book:
-#     def __init__(self, title, author, year):
-#         self.title = title
-#         self.author = author
-#         self.year = year
-        
-# class BookManager:
-#     def __init__(self,):
-#         self.books = []
-#     def add_book(self, title, author,year):
-#         book = Book(title, author, year)
-#         self.books.append(book)
-#         print('Thêm sách thành công')
-#     def list_all(self):
-#         if not self.books:
-#             print('Danh sách trống')
-#         else:
-#             for index, book in enumerate(self.books, start=1):
-#                 print(f""" Thông tin cuốn sách No {index}:
-#                       Title: {book.title}
-#                       Author: {book.author}
-#                       Year: {book.year}
-#                       """)
-#     def delete_book(self, title):
-#         if self.books:
-#             found = [_book for _book in self.books if _book.title == title]
-#             if found:
-#                 self.books.remove(found[0])
-#                 print(f'Xóa thành công cuốn sách {title}')
-#             else:
-#                 print('Tên cuốn sách không tồn tại!')
-#         else:
-#             print('Danh sách rỗng!')
-#     def update_book(self, title, new_author,new_year):
-#         if self.books:
-#             found = [index for index,_book in enumerate(self.books) if _book.title == title]
-#             if found:
-#                 self.books[found[0]].author = new_author
-#                 self.books[found[0]].year = new_year 
-#                 print(f'Cập nhật thành công cuốn sách {title}')
-#             else:
-#                 print('Tên cuốn  cập nhậtnhật không tồn tại!')
-#         else:
-#             print('Danh sách rỗng!')
-
-# class app:
-#     def __init__(self, app_menu, operations):
-#         self.app_menu = app_menu
-#         self.operations = operations
-#     def menu(self):
-#         choose = input(self.app_menu)
-#         while choose != 'q':
-#             if choose not in list(self.operations.keys):
-#                 print('Lựa chọn không hợp lệ. Đề nghị nhập lại!')
-#                 choose = input(self.app_menu)
-#             else:
-#                 switch(choose):
-#                     case 
-    
 import sqlite3
+import json
 
-Path = r'D:\My Project\Agent_Hunting\data.db'                                                               
+def count_event(db_path, file_directory=r'D:\test', registry_directory='HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run'):
+    # Kết nối tới cơ sở dữ liệu SQLite
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        sqlCommand = f"""
+        SELECT OBject, Action FROM Config
+        """
+        cursor.execute(sqlCommand)
+        operations = {}
 
-with sqlite3.connect(Path) as conn:
-    cursor = conn.cursor()
+        for line in cursor:
+            if line == ('Registry', 'Add'):
+                operations['Create Registry'] = 0
+            else:
+                event_name = f'{line[1]} {line[0]}'
+                operations[event_name] = 0 
+
+        if operations:
+            for key, value in operations.items():
+
+                sqlCommand = f"""
+                SELECT * FROM Logs WHERE NAME="{key}"
+                """
+                cursor.execute(sqlCommand)
+                data = cursor.fetchall()
+
+                file_names = set()
+                for row in data:
+                    json_data = json.loads(row[3])  
+                    action, object = row[1].split(' ')
+                    if object == 'File':
+                        file_path = json_data.get("fields", {}).get("file_path", "")
+                        file_name = json_data.get("fields",{}).get("file_name","")
+                        if file_path.startswith(file_directory) and file_name.endswith('.exe') and file_name not in file_names:
+                            operations[f'{action} {object}'] +=1
+                            file_names.add(file_name)
+                    elif object == 'Process':
+                        cmd_line = json_data.get("fields", {}).get("command_line", "")
+                        print(cmd_line)
+                        if cmd_line.endswith('calc.exe'):
+                            operations[f'{action} {object}'] +=1
+                    elif object == 'Registry':
+                        image_path = json_data.get("fields", {}).get("image_path", "")
+                        key = json_data.get("fields", {}).get("key", "")
+                        print(f'Image={image_path}, Key={key}')
+                        if image_path.endswith('python.exe') and key == registry_directory:
+                            operations[f'{action} {object}'] +=1
+            return operations
+if __name__ == "__main__":
+    print(count_event(r'D:\My Project\Agent_Hunting\data.db'))
+
     
-    # Sửa câu lệnh UPDATE
-    cursor.execute("""
-        UPDATE Config
-        SET Filter = '1'
-    """)
-
-    # Commit thay đổi vào cơ sở dữ liệu
-    conn.commit()
-
-    # Kiểm tra kết quả cập nhật
-    cursor.execute("SELECT * FROM Config WHERE Object = 'File' AND Action = 'Create'")
-    rows = cursor.fetchall()
-
-    # Hiển thị dữ liệu
-    print(f"\nDữ liệu trong bảng Config sau khi cập nhật:")
-    for row in rows:
-        print(row)
- 
